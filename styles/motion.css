@@ -1,0 +1,47 @@
+/* Page transitions (one-shot on route change) and loader animations. */
+@keyframes pt-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes pt-hud { 0% { clip-path: inset(0 0 100% 0); filter: brightness(2) } 100% { clip-path: inset(0); filter: none } }
+@keyframes pt-web { 0% { clip-path: circle(0% at 100% 0); opacity: .4 } 100% { clip-path: circle(150% at 100% 0); opacity: 1 } }
+@keyframes pt-lightning { 0% { filter: brightness(3) } 10% { filter: none } 18% { filter: brightness(2.2) } 30%,100% { filter: none } }
+@keyframes pt-ink { 0% { clip-path: circle(0% at 50% 100%) } 100% { clip-path: circle(160% at 50% 100%) } }
+@keyframes pt-portal { 0% { clip-path: circle(0% at 50% 40%); transform: rotate(-6deg) scale(.96) } 100% { clip-path: circle(150% at 50% 40%); transform: none } }
+@keyframes pt-iris { 0% { clip-path: circle(0% at 50% 50%) } 100% { clip-path: circle(150% at 50% 50%) } }
+@keyframes pt-moon { 0% { opacity: 0; filter: blur(8px) } 100% { opacity: 1; filter: none } }
+@keyframes pt-illusion { 0% { opacity: 0; filter: hue-rotate(60deg) blur(3px); transform: skewX(-3deg) } 60% { opacity: .8; transform: skewX(1deg) } 100% { opacity: 1; filter: none; transform: none } }
+@keyframes pt-shadow { 0% { opacity: 0; filter: brightness(0) } 100% { opacity: 1; filter: none } }
+@keyframes pt-swoosh { 0% { opacity: 0; transform: translateY(28px); filter: blur(4px) } 100% { opacity: 1; transform: none; filter: none } }
+@keyframes pt-speed { 0% { opacity: 0; transform: translateX(48px) skewX(-8deg) } 100% { opacity: 1; transform: none } }
+@keyframes pt-lasso { 0% { clip-path: ellipse(0% 0% at 0% 50%) } 100% { clip-path: ellipse(150% 150% at 0% 50%) } }
+
+.pt { animation-fill-mode: both; animation-timing-function: cubic-bezier(.2,.7,.2,1); }
+.pt-fade { animation: pt-fade .25s; }
+.pt-hud { animation: pt-hud .5s; } .pt-web { animation: pt-web .6s; } .pt-lightning { animation: pt-lightning .6s; }
+.pt-ink { animation: pt-ink .7s; } .pt-portal { animation: pt-portal .7s; } .pt-iris { animation: pt-iris .6s; }
+.pt-moon { animation: pt-moon .5s; } .pt-illusion { animation: pt-illusion .55s; } .pt-shadow { animation: pt-shadow .45s; }
+.pt-swoosh { animation: pt-swoosh .45s; } .pt-speed { animation: pt-speed .22s; } .pt-lasso { animation: pt-lasso .6s; }
+
+/* ---------- loaders ---------- */
+.ld { width: 56px; height: 56px; display: inline-block; color: var(--accent); }
+.ld svg { width: 100%; height: 100%; overflow: visible; }
+.ld-spin { animation: ld-rot 1s linear infinite; transform-origin: 50% 50%; }
+.ld-spin-rev { animation: ld-rot 2.4s linear infinite reverse; transform-origin: 50% 50%; }
+.ld-spin-slow { animation: ld-rot 6s linear infinite; transform-origin: 50% 50%; }
+.ld-pulse { animation: ld-pulse 1.2s ease-in-out infinite; transform-origin: 50% 50%; }
+.ld-flicker { animation: ld-flick 1s steps(1) infinite; }
+.ld-slide { animation: ld-slide .9s linear infinite; }
+.ld-blob { width: 100%; height: 100%; background: radial-gradient(circle at 35% 30%, #4b4b5a, #000 65%); box-shadow: 0 0 18px var(--accent2); animation: ld-morph 1.8s ease-in-out infinite; }
+.ld-phase { animation: ld-phase 2.4s ease-in-out infinite; }
+.ld-ghost { animation: ld-ghost 1.1s ease-in-out infinite alternate; }
+@keyframes ld-rot { to { transform: rotate(360deg) } }
+@keyframes ld-pulse { 0%,100% { transform: scale(.82); opacity: .7 } 50% { transform: scale(1.05); opacity: 1 } }
+@keyframes ld-flick { 0%,100% { opacity: 1 } 20% { opacity: .15 } 40% { opacity: 1 } 55% { opacity: .3 } 70% { opacity: 1 } }
+@keyframes ld-slide { from { transform: translateX(-30px); opacity: 0 } 40% { opacity: 1 } to { transform: translateX(30px); opacity: 0 } }
+@keyframes ld-morph { 0%,100% { border-radius: 50% 50% 45% 55% / 55% 45% 55% 45% } 33% { border-radius: 38% 62% 60% 40% / 45% 60% 40% 55% } 66% { border-radius: 60% 40% 38% 62% / 58% 40% 60% 42% } }
+@keyframes ld-phase { 0%,100% { transform: translateX(-18px) } 50% { transform: translateX(18px) } }
+@keyframes ld-ghost { from { transform: translateX(-4px); opacity: .5 } to { transform: translateX(4px); opacity: 1 } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pt, [class*="pt-"] { animation: none !important; }
+  .ld-spin, .ld-spin-rev, .ld-spin-slow, .ld-pulse, .ld-flicker, .ld-slide, .ld-blob, .ld-phase, .ld-ghost { animation: none !important; }
+  .fx-layer, .fx-layer::before, .fx-layer::after { animation: none !important; }
+}

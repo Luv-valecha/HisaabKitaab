@@ -1,0 +1,103 @@
+import chromium from "@sparticuz/chromium";
+import puppeteer from "puppeteer-core";
+const BASE = "http://localhost:3100";
+const b = await puppeteer.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: "shell" });
+const errors = [];
+let ok = 0, bad = 0;
+const check = (n, c, x) => { c ? ok++ : bad++; console.log(c ? "  ok  " : "  FAIL", n, c ? "" : (x ?? "")); };
+async function mk(w, h) {
+  const p = await b.newPage(); await p.setViewport({ width: w, height: h, deviceScaleFactor: 1 });
+  await p.evaluateOnNewDocument(() => { document.addEventListener("DOMContentLoaded", () => { const st = document.createElement("style"); st.id = "test-nocaps"; st.textContent = "*{text-transform:none !important}"; document.head.append(st); }); });
+  p.on("console", (m) => { if (["error"].includes(m.type())) errors.push(`${m.text()} @${p.url()}`); });
+  p.on("pageerror", (e) => errors.push(`PAGEERROR ${e.message} @${p.url()}`));
+  return p;
+}
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const text = (p) => p.evaluate(() => document.body.innerText);
+
+const d = await mk(1280, 900);
+await d.goto(BASE + "/dashboard", { waitUntil: "networkidle0" });
+await d.waitForFunction(() => location.pathname === "/login", { timeout: 8000 }).catch(() => {});
+check("unauthenticated dashboard redirects to /login", new URL(d.url()).pathname === "/login", d.url());
+
+await d.type("#identifier", "alice"); await d.type("#password", "Password123!");
+await Promise.all([d.waitForFunction(() => location.pathname === "/dashboard", { timeout: 15000 }), d.click("button[type=submit]")]);
+await d.waitForFunction(() => document.body.innerText.includes("Total balance"), { timeout: 15000 });
+let t = await text(d);
+check("dashboard greets user and shows stats", t.includes("Hello, Alice") && t.includes("You owe") && t.includes("You are owed") && t.includes("Budget remaining"));
+check("dashboard shows owed ₹2,900", t.includes("₹2,900"), t.slice(0, 300));
+await d.screenshot({ path: "shots/dash-light.png" });
+
+for (const [path, expect] of [["/groups", "Goa Trip"], ["/friends", "Your friends"], ["/budget", "Monthly income"], ["/analytics", "Spending by category"], ["/settlements", "Part payment"], ["/notifications", "Notifications"], ["/themes", "Iron Man"], ["/profile", "Log out"]]) {
+  await d.goto(BASE + path, { waitUntil: "networkidle0" });
+  await d.waitForFunction((e) => document.body.innerText.includes(e), { timeout: 10000 }, expect).catch(() => {});
+  check(`${path} renders "${expect}"`, (await text(d)).includes(expect), (await text(d)).slice(0, 200));
+}
+await d.goto(BASE + "/analytics", { waitUntil: "networkidle0" }); await wait(1500);
+check("analytics draws charts (svg)", (await d.$$("svg.recharts-surface")).length >= 2);
+await d.screenshot({ path: "shots/analytics-light.png", fullPage: true });
+
+// Group page + balances
+await d.goto(BASE + "/groups", { waitUntil: "networkidle0" });
+await d.evaluate(() => [...document.querySelectorAll("a")].find((a) => a.innerText.includes("Goa Trip")).click());
+await d.waitForFunction(() => document.body.innerText.includes("Seafood dinner"), { timeout: 10000 });
+t = await text(d);
+check("group shows expenses and my balance +₹2,200", t.includes("Hotel") && t.includes("+₹2,200"), t.slice(0, 400));
+await d.evaluate(() => [...document.querySelectorAll("[role=tab]")].find((x) => x.innerText === "Settle up").click());
+await d.waitForFunction(() => document.body.innerText.includes("Suggested settlements"));
+check("settle-up suggestions visible", (await text(d)).includes("Receive from"));
+await d.screenshot({ path: "shots/group-settle.png" });
+
+// Add expense through the real form
+await d.goto(BASE + "/expenses/new", { waitUntil: "networkidle0" });
+await d.waitForSelector("#amount"); await wait(800);
+await d.type("#amount", "900"); await d.type("#desc", "UI test lunch");
+await wait(300);
+check("live split preview shows ₹300 each (3 flatmates)", (await text(d)).includes("₹300"), (await text(d)).slice(0, 500));
+await d.evaluate(() => [...document.querySelectorAll("[role=radio]")].find((x) => x.innerText.includes("Percent")).click());
+await wait(200);
+check("percent split shows validation message until 100%", (await text(d)).includes("100%"));
+await d.evaluate(() => [...document.querySelectorAll("[role=radio]")].find((x) => x.innerText.includes("Equally")).click());
+await Promise.all([d.waitForFunction(() => /\/groups\//.test(location.pathname), { timeout: 15000 }), d.click("button[type=submit]")]);
+await d.waitForFunction(() => document.body.innerText.includes("UI test lunch"), { timeout: 10000 });
+check("expense created via UI and listed", true);
+
+// Theme: choose Iron Man, reload, new page, logout/login
+await d.goto(BASE + "/themes", { waitUntil: "networkidle0" });
+await d.evaluate(() => [...document.querySelectorAll("section")].find((s) => s.getAttribute("aria-label") === "Iron Man").querySelectorAll("button")[1].click());
+await wait(800);
+check("theme applied to <html>", (await d.evaluate(() => document.documentElement.dataset.theme)) === "iron_man");
+await d.goto(BASE + "/dashboard", { waitUntil: "networkidle0" }); await wait(800);
+check("theme persists across reload", (await d.evaluate(() => document.documentElement.dataset.theme)) === "iron_man");
+await d.screenshot({ path: "shots/dash-ironman.png" });
+await d.evaluate(() => localStorage.clear());
+await d.reload({ waitUntil: "networkidle0" }); await wait(1000);
+check("theme restored from account when localStorage empty", (await d.evaluate(() => document.documentElement.dataset.theme)) === "iron_man");
+check("page-transition + fx classes present", await d.evaluate(() => !!document.querySelector(".pt-hud") && !!document.querySelector(".fx-hud")));
+
+await d.close();
+// Visual pass of every theme (dashboard) at mobile size
+const m = await mk(390, 800);
+await m.goto(BASE + "/login", { waitUntil: "networkidle0" });
+await m.type("#identifier", "alice"); await m.type("#password", "Password123!");
+await Promise.all([m.waitForFunction(() => location.pathname === "/dashboard", { timeout: 15000 }), m.click("button[type=submit]")]);
+await m.waitForFunction(() => document.body.innerText.includes("Total balance"), { timeout: 15000 });
+const ids = ["light","dark","iron_man","spider_man","thor","venom","doctor_strange","captain_america","moon_knight","loki","batman","superman","flash","wonder_woman"];
+for (const id of ids) {
+  await m.evaluate((x) => { document.documentElement.dataset.theme = x; }, id); await wait(250);
+  const overflow = await m.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+  check(`mobile no horizontal overflow (${id})`, !overflow);
+  if (["spider_man","batman","wonder_woman","thor"].includes(id)) { try { await m.screenshot({ path: `shots/m-${id}.png` }); } catch (e) { console.log("  (screenshot skipped:", e.message.slice(0,40), ")"); } }
+}
+await m.goto(BASE + "/groups", { waitUntil: "networkidle0" });
+check("mobile bottom nav visible", await m.evaluate(() => { const n = [...document.querySelectorAll("nav")].find((x) => x.className.includes("fixed")); return !!n && getComputedStyle(n).display !== "none"; }));
+check("desktop sidebar hidden on mobile", await m.evaluate(() => getComputedStyle(document.querySelector("aside")).display === "none"));
+
+// Reduced motion
+const r = await mk(1000, 700); await r.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: "reduce" }]);
+await r.goto(BASE + "/login", { waitUntil: "networkidle0" });
+check("reduced-motion media query is honoured by CSS", await r.evaluate(() => { const s = document.createElement("div"); s.className = "pt pt-hud"; document.body.append(s); return getComputedStyle(s).animationName === "none"; }));
+
+console.log(`\n${ok} passed, ${bad} failed`);
+console.log("Console/page errors:", errors.length ? "\n" + [...new Set(errors)].join("\n") : "none");
+await b.close(); process.exit(bad ? 1 : 0);
